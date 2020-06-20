@@ -40,7 +40,7 @@ import com.google.android.exoplayer2.ui.PlayerView;
 public class MainActivity extends Activity {
 
     private final String VOD = "http://sample.vodobox.com/planete_interdite/planete_interdite_alternate.m3u8";
-    private final String LIVE = "http://fdc18.streams.gq:2095/streams/46_.m3u8";
+    private final String LIVE = "http://hefeng.live.tempsource.cjyun.org/videotmp/s10100-hftv.m3u8";
 
     private PlayerView playerView;
     private SimpleExoPlayer player;
