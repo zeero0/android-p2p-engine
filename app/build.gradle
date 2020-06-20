@@ -60,7 +60,7 @@ dependencies {
     implementation 'org.java-websocket:Java-WebSocket:1.4.0'
     implementation 'com.orhanobut:logger:2.2.0'
     implementation 'com.squareup.okhttp3:okhttp:3.12.0'
-    implementation 'com.google.android.exoplayer:exoplayer:2.10.7'
+    implementation 'com.google.android.exoplayer:exoplayer:2.11.4'
     //    compile 'com.tencent.bugly:crashreport:latest.release'
     compile(name: 'webrtc', ext: 'aar')
     implementation files('libs/cdnbye-1.7.5.jar')

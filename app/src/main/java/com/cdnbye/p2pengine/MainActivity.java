@@ -3,9 +3,11 @@ package com.cdnbye.p2pengine;
 import android.app.Activity;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
+
 import java.util.List;
 
 import com.cdnbye.sdk.P2pEngine;
@@ -14,11 +16,22 @@ import com.cdnbye.sdk.P2pStatisticsListener;
 import com.cdnbye.sdk.LogLevel;
 import com.cdnbye.sdk.PlayerStatsCallback;
 
+import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlayerFactory;
+import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.audio.AudioAttributes;
+import com.google.android.exoplayer2.source.TrackGroup;
+import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
+import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
+import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
+import com.google.android.exoplayer2.trackselection.TrackSelection;
+import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
+import com.google.android.exoplayer2.ui.DefaultTrackNameProvider;
 import com.google.android.exoplayer2.upstream.DataSource;
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
 import com.google.android.exoplayer2.ui.PlayerView;
@@ -26,8 +39,8 @@ import com.google.android.exoplayer2.ui.PlayerView;
 
 public class MainActivity extends Activity {
 
-    private final String VOD = "https://www.nmgxwhz.com:65/20200107/17hTnjxI/index.m3u8";
-    private final String LIVE = "http://hefeng.live.tempsource.cjyun.org/videotmp/s10100-hftv.m3u8";
+    private final String VOD = "http://sample.vodobox.com/planete_interdite/planete_interdite_alternate.m3u8";
+    private final String LIVE = "http://fdc18.streams.gq:2095/streams/46_.m3u8";
 
     private PlayerView playerView;
     private SimpleExoPlayer player;
@@ -42,6 +55,7 @@ public class MainActivity extends Activity {
     private double totalHttpDownloaded = 0;
     private double totalP2pDownloaded = 0;
     private double totalP2pUploaded = 0;
+    private DefaultTrackSelector mTrackSelector;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,13 +71,13 @@ public class MainActivity extends Activity {
 
         P2pConfig config = new P2pConfig.Builder()
                 .logEnabled(true)
-                .logLevel(LogLevel.INFO)
+                .logLevel(LogLevel.DEBUG)
                 .p2pEnabled(true)
                 .withTag("exoplayer")
                 .build();
 
         // Instantiate P2pEngine，which is a singleton
-        P2pEngine engine = P2pEngine.initEngine(getApplicationContext(), "free", config);
+        P2pEngine engine = P2pEngine.initEngine(getApplicationContext(), "sj8BMXlWR", config);
 
         // Recommended while playing living stream
         engine.setPlayStats(new PlayerStatsCallback() {
@@ -110,7 +124,7 @@ public class MainActivity extends Activity {
             @Override
             public void onServerConnected(boolean connected) {
                 TextView connectedV = findViewById(R.id.connected);
-                String text = String.format("Connected: %s", connected?"Yes":"No");
+                String text = String.format("Connected: %s", connected ? "Yes" : "No");
                 connectedV.setText(text);
                 TextView peerIdV = findViewById(R.id.peerId);
                 String text2 = String.format("Peer ID: %s", P2pEngine.getInstance().getPeerId());
@@ -185,15 +199,40 @@ public class MainActivity extends Activity {
         DataSource.Factory dataSourceFactory =
                 new DefaultHttpDataSourceFactory(
                         Util.getUserAgent(this, "p2p-engine"),
-                        DefaultHttpDataSource.DEFAULT_CONNECT_TIMEOUT_MILLIS,
-                        DefaultHttpDataSource.DEFAULT_READ_TIMEOUT_MILLIS,
+                        8000000,
+                        8000000,
                         true   /* allowCrossProtocolRedirects */
                 );
         // Create a HLS media source pointing to a playlist uri.
         HlsMediaSource hlsMediaSource =
                 new HlsMediaSource.Factory(dataSourceFactory).createMediaSource(Uri.parse(parsedUrl));
         // Create a player instance.
-        player = ExoPlayerFactory.newSimpleInstance(this);
+//        player = ExoPlayerFactory.newSimpleInstance(this);
+        setTrackSelector();
+        RenderersFactory renderFactory = ((MyApplication) getApplication()).buildRenderersFactory(false);
+        player = new SimpleExoPlayer.Builder(this, renderFactory)
+                .setTrackSelector(mTrackSelector)
+                .build();
+        player.setAudioAttributes(AudioAttributes.DEFAULT,true);
+        player.addListener(new Player.EventListener() {
+            @Override
+            @SuppressWarnings("ReferenceEquality")
+            public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
+                MappingTrackSelector.MappedTrackInfo mappedTrackInfo = mTrackSelector.getCurrentMappedTrackInfo();
+
+                DefaultTrackNameProvider nameProvider = new DefaultTrackNameProvider(getResources());
+                for (int ri = 0; ri < mappedTrackInfo.getRendererCount(); ri++) {
+                    TrackGroupArray tracks = mappedTrackInfo.getTrackGroups(ri);
+                    for (int ti = 0; ti < tracks.length; ti++) {
+                        TrackGroup group = tracks.get(ti);
+                        for (int gi = 0; gi < group.length; gi++) {
+                            Log.e("PLAYER", ri + " | " + ti + " | " + gi + " - " + "TrackName: " + nameProvider
+                                    .getTrackName(group.getFormat(gi)));
+                        }
+                    }
+                }
+            }
+        });
         // Attach player to the view.
         playerView = findViewById(R.id.player_view);
         playerView.setPlayer(player);
@@ -201,7 +240,18 @@ public class MainActivity extends Activity {
         player.prepare(hlsMediaSource);
         // Start play when ready
         player.setPlayWhenReady(true);
+    }
 
+    private void setTrackSelector() {
+        TrackSelection.Factory trackSelectionFactory = new AdaptiveTrackSelection.Factory();
+
+        DefaultTrackSelector.ParametersBuilder builder = new DefaultTrackSelector.ParametersBuilder(this);
+        boolean tunneling = false;
+        if (Util.SDK_INT >= 21 && tunneling) {
+            builder.setTunnelingAudioSessionId(C.generateAudioSessionIdV21(this));
+        }
+        mTrackSelector = new DefaultTrackSelector(this, trackSelectionFactory);
+        mTrackSelector.setParameters(builder.build());
     }
 
     private void refreshRatio() {
